@@ -3,7 +3,14 @@ import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import * as tf from '@tensorflow/tfjs';
 
 const RISK_RULES = {
-  person: { label: 'Human / Trespass Risk', severity: 'critical' },
+  person: { label: 'Human Detected', severity: 'critical' },
+  'cell phone': { label: 'Phone Detected', severity: 'medium' },
+  laptop: { label: 'Laptop Detected', severity: 'medium' },
+  bottle: { label: 'Bottle Detected', severity: 'medium' },
+  chair: { label: 'Chair Detected', severity: 'medium' },
+  handbag: { label: 'Handbag Detected', severity: 'medium' },
+  book: { label: 'Book Detected', severity: 'medium' },
+  umbrella: { label: 'Umbrella Detected', severity: 'medium' },
   cow: { label: 'Animal on Track', severity: 'critical' },
   horse: { label: 'Animal on Track', severity: 'critical' },
   dog: { label: 'Animal on Track', severity: 'high' },
@@ -66,6 +73,9 @@ export default function useCamera({ onDetection } = {}) {
 
     items.forEach((item) => {
       const [x, y, boxWidth, boxHeight] = item.bbox;
+      // The selfie preview is mirrored, but the canvas must stay unmirrored
+      // so text remains readable. Mirror only the bounding-box coordinates.
+      const boxX = facingMode === 'user' ? width - x - boxWidth : x;
 
       const color =
         item.severity === 'critical'
@@ -78,7 +88,7 @@ export default function useCamera({ onDetection } = {}) {
 
       context.strokeStyle = color;
       context.lineWidth = 3;
-      context.strokeRect(x, y, boxWidth, boxHeight);
+      context.strokeRect(boxX, y, boxWidth, boxHeight);
 
       const text = `${item.class} ${item.confidence}%`;
 
@@ -86,12 +96,12 @@ export default function useCamera({ onDetection } = {}) {
       const textWidth = context.measureText(text).width + 14;
 
       context.fillStyle = color;
-      context.fillRect(x, Math.max(0, y - 28), textWidth, 28);
+      context.fillRect(boxX, Math.max(0, y - 28), textWidth, 28);
 
       context.fillStyle = '#06111f';
-      context.fillText(text, x + 7, Math.max(18, y - 8));
+      context.fillText(text, boxX + 7, Math.max(18, y - 8));
     });
-  }, []);
+  }, [facingMode]);
 
   const processPredictions = useCallback((predictions) => {
     const items = predictions.map((prediction) => {
@@ -163,11 +173,9 @@ export default function useCamera({ onDetection } = {}) {
 
     if (video.readyState >= 2) {
       try {
-        const predictions = await detectorRef.current.detect(
-          video,
-          20,
-          0.40
-        );
+        // Slightly lower threshold helps the demo show common objects while
+        // still filtering very weak predictions. This is not a railway-certified model.
+        const predictions = await detectorRef.current.detect(video, 20, 0.45);
 
         processPredictions(predictions);
         frameCountRef.current += 1;
@@ -199,16 +207,8 @@ export default function useCamera({ onDetection } = {}) {
         );
       }
 
-      await tf.ready();
-
-      // MobileNet V2 is slower than the lite model, but usually gives better
-      // detections for a laptop demo when the machine can handle it.
-      const model = await cocoSsd.load({
-        base: 'mobilenet_v2',
-      });
-
-      detectorRef.current = model;
-
+      // Ask for camera access first, so the browser permission prompt appears
+      // immediately instead of leaving the user waiting for the AI model.
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: requestedFacingMode,
@@ -220,11 +220,25 @@ export default function useCamera({ onDetection } = {}) {
 
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      if (!videoRef.current) {
+        throw new Error('Camera preview is not ready. Please try again.');
       }
 
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
+      // COCO-SSD downloads its model weights the first time it is used. The
+      // lite model is a good default for laptop demos; try V1 if it fails.
+      await tf.ready();
+      let model;
+      try {
+        model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+      } catch (firstModelError) {
+        console.warn('Lite COCO-SSD model failed; trying MobileNet V1.', firstModelError);
+        model = await cocoSsd.load({ base: 'mobilenet_v1' });
+      }
+
+      detectorRef.current = model;
       setModelState('ready');
       setCameraState('live');
       runningRef.current = true;
@@ -233,15 +247,27 @@ export default function useCamera({ onDetection } = {}) {
 
       detectLoop();
     } catch (error) {
+      runningRef.current = false;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
       detectorRef.current = null;
+
+      if (videoRef.current) videoRef.current.srcObject = null;
+
       setModelState('idle');
       setCameraState('error');
 
-      setCameraError(
-        error?.name === 'NotAllowedError'
-          ? 'Camera permission was denied. Allow camera access and try again.'
-          : error?.message || 'Unable to access camera.'
-      );
+      const message = error?.name === 'NotAllowedError'
+        ? 'Camera permission was denied. Allow camera access in your browser settings and try again.'
+        : error?.name === 'NotFoundError'
+          ? 'No camera was found. Connect a webcam and try again.'
+          : error?.name === 'NotReadableError'
+            ? 'The camera may already be in use by another app. Close it and try again.'
+            : /fetch|network|load/i.test(error?.message || '')
+              ? 'The AI model could not download. Check your internet connection and try again.'
+              : error?.message || 'Unable to start camera detection.';
+
+      setCameraError(message);
     }
   }, [detectLoop, facingMode]);
 

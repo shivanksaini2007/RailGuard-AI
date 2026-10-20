@@ -19,22 +19,30 @@ export default function Camera() {
 
   const [simulation, setSimulation] = useState(false);
   const [sound, setSound] = useLocalStorage('railguard_sound', true);
-  const [location, setLocation] = useState(
-    'Training Yard • Track 04'
-  );
+  const [selectedLocation, setSelectedLocation] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('railguard_selected_location_v1')) || { name: 'Training Yard', track: 'Track 04', km: 'Km 128/4' }; } catch { return { name: 'Training Yard', track: 'Track 04', km: 'Km 128/4' }; }
+  });
+  const [location, setLocation] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem('railguard_selected_location_v1')); return saved ? `${saved.name} • ${saved.track}${saved.km ? ` • ${saved.km}` : ''}` : 'Training Yard • Track 04'; } catch { return 'Training Yard • Track 04'; }
+  });
+  const [track, setTrack] = useState(() => { try { return JSON.parse(localStorage.getItem('railguard_selected_location_v1'))?.track || 'Track 04'; } catch { return 'Track 04'; } });
+
+  React.useEffect(() => {
+    const syncLocation = (event) => {
+      if (event.key !== 'railguard_selected_location_v1' || !event.newValue) return;
+      try { const next = JSON.parse(event.newValue); setSelectedLocation(next); setTrack(next.track || 'Track 04'); setLocation(`${next.name} • ${next.track || 'Track 04'}${next.km ? ` • ${next.km}` : ''}`); } catch {}
+    };
+    window.addEventListener('storage', syncLocation);
+    return () => window.removeEventListener('storage', syncLocation);
+  }, []);
+
+  const displayObjectName = (name) => ({ person: 'Human', 'cell phone': 'Phone', cow: 'Cow', dog: 'Dog', cat: 'Cat', horse: 'Horse', sheep: 'Sheep', backpack: 'Backpack', suitcase: 'Suitcase', bicycle: 'Bicycle', motorcycle: 'Motorcycle', car: 'Car', truck: 'Truck', bus: 'Bus', bottle: 'Bottle', chair: 'Chair', handbag: 'Handbag', laptop: 'Laptop', book: 'Book', umbrella: 'Umbrella' }[String(name || '').toLowerCase()] || String(name || 'Object').replace(/^./, (c) => c.toUpperCase()));
   const [snapshotUrl, setSnapshotUrl] = useState('');
 
   const lastTestRef = useRef(0);
 
   const onDetection = useCallback(
     (item) => {
-      if (
-        item.severity !== 'critical' &&
-        item.severity !== 'high'
-      ) {
-        return;
-      }
-
       const now = Date.now();
 
       if (now - lastTestRef.current < 7000) {
@@ -44,21 +52,21 @@ export default function Camera() {
       lastTestRef.current = now;
 
       addIncident({
-        object: item.class,
-        objectName: item.class,
-        title: item.label,
+        object: displayObjectName(item.class),
+        objectName: displayObjectName(item.class),
+        title: `${displayObjectName(item.class)} Detected`,
         category: 'AI Camera Detection',
-        track: 'Track 04',
+        track,
+        track_name: track,
         location,
         confidence: item.confidence,
         severity: item.severity,
         camera: 'Laptop Webcam',
         source: 'Browser AI',
-        details:
-          'Object detected by the browser COCO-SSD model.',
+        details: `${displayObjectName(item.class)} detected at ${new Date().toLocaleTimeString()} at ${location}. AI confidence: ${item.confidence}%. Please verify the track visually.`,
       });
     },
-    [addIncident, location, sound]
+    [addIncident, location, track, sound]
   );
 
   const {
@@ -84,14 +92,14 @@ export default function Camera() {
       objectName: 'Cow',
       title: 'Animal on Track',
       category: 'Track Obstruction',
-      track: 'Track 04',
+      track,
+      track_name: track,
       location,
       confidence: 94,
       severity: 'critical',
       camera: 'Training Scenario',
       source: 'Manual Safety Test',
-      details:
-        'Synthetic training event generated for the hackathon demo.',
+      details: `Human/animal safety drill at ${new Date().toLocaleTimeString()} for ${location}. This is a synthetic test, not a real detection.`,
     });
   };
 
@@ -163,8 +171,10 @@ export default function Camera() {
 
               <small>
                 {cameraState === 'live'
-                  ? 'Camera active • local AI inference'
-                  : 'Camera is not active'}
+                  ? 'Camera active • COCO-SSD is checking each frame'
+                  : cameraState === 'starting'
+                    ? 'Requesting camera and loading AI model…'
+                    : 'Start the camera to detect people, animals and common objects'}
               </small>
             </div>
 
@@ -204,6 +214,8 @@ export default function Camera() {
             <canvas
               ref={canvasRef}
               className="overlay"
+              // Keep the overlay unmirrored: useCamera mirrors box positions
+              // while drawing labels normally, so 'person' stays readable.
             />
 
             {cameraState !== 'live' && (
@@ -215,7 +227,9 @@ export default function Camera() {
                 <strong>
                   {cameraState === 'error'
                     ? 'Camera could not start'
-                    : 'Ready for laptop camera'}
+                    : cameraState === 'starting'
+                      ? 'Starting camera and AI…'
+                      : 'Ready for laptop camera'}
                 </strong>
 
                 <span>
@@ -311,7 +325,7 @@ export default function Camera() {
             <div className="panel-head">
               <div>
                 <h3>Live Detections</h3>
-                <small>COCO-SSD • MobileNet V2 model</small>
+                <small>COCO-SSD • TensorFlow.js • common object detection</small>
               </div>
 
               <span className="count-chip">
@@ -326,7 +340,7 @@ export default function Camera() {
               >
                 <div className="detection-name">
                   <span className="det-dot" />
-                  <strong>{item.class}</strong>
+                  <strong>{displayObjectName(item.class)}</strong>
                 </div>
 
                 <span>{item.confidence}%</span>
@@ -337,7 +351,9 @@ export default function Camera() {
               <div className="empty-state">
                 <CameraIcon size={28} />
                 <span>
-                  No objects detected yet.
+                  {cameraState === 'live'
+                    ? 'No objects detected in the current frame. Try moving closer or improving the lighting.'
+                    : 'Start the camera to see live object detections here.'}
                 </span>
               </div>
             )}
@@ -351,6 +367,10 @@ export default function Camera() {
               </div>
             </div>
 
+            <div className="config-row">
+              <span>Track</span>
+              <select value={track} onChange={(event) => { setTrack(event.target.value); const next = { ...selectedLocation, track: event.target.value }; setSelectedLocation(next); try { localStorage.setItem('railguard_selected_location_v1', JSON.stringify(next)); } catch {} setLocation(`${next.name || 'Selected Location'} • ${event.target.value}${next.km ? ` • ${next.km}` : ''}`); }} className="full-input" style={{maxWidth:180,padding:7}}>{Array.from({length:12},(_,i)=>`Track ${String(i+1).padStart(2,'0')}`).map((item) => <option key={item}>{item}</option>)}</select>
+            </div>
             <div className="config-row">
               <span>Location</span>
 
@@ -384,10 +404,11 @@ export default function Camera() {
           <strong>How the demo works</strong>
 
           <span>
-            Browser camera → TensorFlow.js → COCO-SSD MobileNet V2 →
-            confidence filtering → safety rules → incident report.
-            Camera processing happens in the browser for this
-            prototype.
+            Browser camera → TensorFlow.js → COCO-SSD object model →
+            confidence filtering → bounding boxes → safety rules → incident report.
+            The model can detect common COCO classes (such as people, dogs, cows,
+            cars and bicycles). It is a prototype object detector, not a certified
+            railway-track intrusion detector.
           </span>
         </div>
       </div>

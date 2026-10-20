@@ -3,16 +3,28 @@ import { NavLink } from 'react-router-dom';
 import { Menu, ShieldCheck, TrainFront } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
-const quickLinks = [
+const employeeLinks = [
   { label: 'Overview', to: '/home' },
   { label: 'About', to: '/about' },
-  { label: 'Camera', to: '/camera' },
-  { label: 'Alerts', to: '/alerts' },
+  { label: 'AI Camera', to: '/camera' },
+  { label: 'Incidents', to: '/alerts' },
   { label: 'Reports', to: '/reports' },
-  { label: 'Map', to: '/map' },
+  { label: 'Railway Map', to: '/map' },
+  { label: 'Settings', to: '/settings' },
+];
+
+const driverLinks = [
+  { label: 'Dashboard', to: '/home' },
+  { label: 'Driver Safety', to: '/driver' },
+  { label: 'Alerts', to: '/alerts' },
+  { label: 'Railway Map', to: '/map' },
+  { label: 'About', to: '/about' },
+  { label: 'Settings', to: '/settings' },
 ];
 
 export default function Navbar({ user, onMenuClick, onLogout }) {
+  const quickLinks = user?.role === 'driver' ? driverLinks : employeeLinks;
+
   return (
     <header className="topbar">
       <button

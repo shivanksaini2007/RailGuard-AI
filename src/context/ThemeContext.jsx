@@ -4,11 +4,11 @@ const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('railguard_theme') || 'dark';
+    return localStorage.getItem('railguard_theme_v2') || 'dark';
   });
 
   useEffect(() => {
-    localStorage.setItem('railguard_theme', theme);
+    localStorage.setItem('railguard_theme_v2', theme);
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 

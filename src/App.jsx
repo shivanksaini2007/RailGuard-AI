@@ -20,6 +20,16 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import { useAuth } from './context/AuthContext';
 
+function RoleOnly({ role, children }) {
+  const { user } = useAuth();
+  return user?.role === role ? children : <Navigate to="/home" replace />;
+}
+
+function RoleHome() {
+  const { user } = useAuth();
+  return user?.role === 'driver' ? <DriverMode /> : <Home />;
+}
+
 function ConsoleShell() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -59,7 +69,7 @@ function ConsoleShell() {
         </div>
 
         <Outlet />
-        <Footer />
+        <Footer user={user} />
       </main>
     </div>
   );
@@ -72,14 +82,14 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<ConsoleShell />}>
           <Route path="/" element={<Navigate to="/home" replace />} />
-          <Route path="/home" element={<Home />} />
+          <Route path="/home" element={<RoleHome />} />
           <Route path="/about" element={<About />} />
-          <Route path="/camera" element={<Camera />} />
+          <Route path="/camera" element={<RoleOnly role="employee"><Camera /></RoleOnly>} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/alerts/:id" element={<ReportDetails />} />
-          <Route path="/reports" element={<Reports />} />
+          <Route path="/reports" element={<RoleOnly role="employee"><Reports /></RoleOnly>} />
           <Route path="/map" element={<RailwayMap />} />
-          <Route path="/driver" element={<DriverMode />} />
+          <Route path="/driver" element={<RoleOnly role="driver"><DriverMode /></RoleOnly>} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>

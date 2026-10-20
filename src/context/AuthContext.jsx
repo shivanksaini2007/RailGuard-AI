@@ -1,63 +1,49 @@
-import React from 'react';
-import { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 
 const AuthContext = createContext(null);
+const USER_KEY = 'railguard_user';
 
-const DEMO_USERS = [
-  {
-    id: 'RG-1001',
-    pin: '1234',
-    name: 'Railway Operator',
-    role: 'employee',
-  },
-  {
-    id: 'DRV-1001',
-    pin: '1234',
-    name: 'Train Driver',
-    role: 'driver',
-  },
-];
+function readUser() {
+  try {
+    return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = sessionStorage.getItem('railguard_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(readUser);
+  const [authLoading] = useState(false);
 
-  const login = (id, pin) => {
-    const found = DEMO_USERS.find(
-      (item) => item.id === id.trim() && item.pin === pin
-    );
+  // Frontend-only demo login. This is for a college prototype, not production security.
+  const login = async (id, password) => {
+    if (!String(password || '').trim()) {
+      throw new Error('Please enter a password to continue.');
+    }
 
-    if (!found) return false;
+    const cleanId = String(id || '').trim().toUpperCase();
+    let nextUser;
+    if (cleanId === 'DRV-1001') {
+      nextUser = { id: 'DRV-1001', name: 'Train Driver', role: 'driver' };
+    } else if (cleanId === 'RG-1001') {
+      nextUser = { id: 'RG-1001', name: 'Railway Employee', role: 'employee' };
+    } else {
+      throw new Error('Use demo ID RG-1001 for Employee or DRV-1001 for Driver.');
+    }
 
-    const safeUser = {
-      id: found.id,
-      name: found.name,
-      role: found.role,
-    };
-
-    setUser(safeUser);
-    sessionStorage.setItem('railguard_user', JSON.stringify(safeUser));
-
-    return true;
+    sessionStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+    setUser(nextUser);
+    return nextUser;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    sessionStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem('railguard_token');
     setUser(null);
-    sessionStorage.removeItem('railguard_user');
   };
 
-  const value = useMemo(
-    () => ({ user, login, logout }),
-    [user]
-  );
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = useMemo(() => ({ user, login, logout, authLoading }), [user, authLoading]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

@@ -10,32 +10,26 @@ export default function Login() {
 
   const [role, setRole] = useState('employee');
   const [id, setId] = useState('RG-1001');
-  const [pin, setPin] = useState('1234');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   if (user) {
     return <Navigate to="/home" replace />;
   }
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-
-    const success = login(
-      role === 'driver' ? 'DRV-1001' : id,
-      pin
-    );
-
-    if (!success) {
-      setError(
-        role === 'driver'
-          ? 'Use demo driver PIN 1234.'
-          : 'Use demo employee ID RG-1001 and PIN 1234.'
-      );
-      return;
-    }
-
     setError('');
-    navigate('/home');
+    setSubmitting(true);
+    try {
+      await login(role === 'driver' ? 'DRV-1001' : id, pin);
+      navigate('/home');
+    } catch (loginError) {
+      setError(loginError.message || 'Unable to sign in. Check your ID and password.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -73,6 +67,7 @@ export default function Login() {
             onClick={() => {
               setRole('employee');
               setId('RG-1001');
+              setPin('');
             }}
           >
             <UsersRound size={18} />
@@ -88,6 +83,7 @@ export default function Login() {
             onClick={() => {
               setRole('driver');
               setId('DRV-1001');
+              setPin('');
             }}
           >
             <TrainFront size={18} />
@@ -103,6 +99,8 @@ export default function Login() {
               <UsersRound size={17} />
 
               <input
+                placeholder="Enter personnel ID"
+                autoComplete="username"
                 value={id}
                 onChange={(event) => setId(event.target.value)}
                 disabled={role === 'driver'}
@@ -111,22 +109,18 @@ export default function Login() {
           </div>
 
           <div className="field">
-            <label>Access PIN</label>
+            <label>Password</label>
 
             <div className="input-wrap">
               <LockKeyhole size={17} />
 
               <input
+                placeholder="Enter your password"
                 value={pin}
-                onChange={(event) =>
-                  setPin(
-                    event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 6)
-                  )
-                }
+                onChange={(event) => setPin(event.target.value)}
                 type="password"
-                inputMode="numeric"
+                autoComplete="current-password"
+                maxLength={100}
               />
             </div>
           </div>
@@ -137,15 +131,14 @@ export default function Login() {
             </div>
           )}
 
-          <button className="login-btn">
+          <button className="login-btn" disabled={submitting}>
             <ShieldCheck size={18} />
-            Enter Operations Console
+            {submitting ? 'Signing in…' : 'Enter Operations Console'}
           </button>
         </form>
 
         <p className="login-note">
-          Demo login only. Production railway deployment would
-          require real authentication, permissions and audit logs.
+Frontend demo login: use RG-1001 for Employee or DRV-1001 for Driver, and enter any non-empty password. Data is saved in this browser.
         </p>
       </div>
     </div>

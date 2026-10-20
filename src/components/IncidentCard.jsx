@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Gauge, MapPin } from 'lucide-react';
+import { Camera, Gauge, MapPin, TrainFront } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function IncidentCard({
@@ -23,8 +23,8 @@ export default function IncidentCard({
       </div>
 
       <h4>{incident.title}</h4>
-
-      <p>{incident.details}</p>
+      <p><strong style={{color:'#c9d9e7'}}>Object:</strong> {incident.objectName || incident.object || incident.title} · <strong style={{color:'#c9d9e7'}}>Track:</strong> {incident.track || 'Track not set'}</p>
+      <p style={{marginTop:6}}>{incident.details}</p>
 
       <div className="incident-meta">
         <span>
@@ -35,6 +35,11 @@ export default function IncidentCard({
         <span>
           <Camera size={14} />
           {incident.camera}
+        </span>
+
+        <span>
+          <TrainFront size={14} />
+          {incident.track || 'Track not set'}
         </span>
 
         <span>

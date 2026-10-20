@@ -12,7 +12,7 @@ const navigation = [
   ['/alerts', 'Incidents', Bell],
   ['/reports', 'Reports', FileText],
   ['/map', 'Railway Map', Map],
-  ['/driver', 'Driver Cab', TrainFront],
+  ['/driver', 'Driver Safety', TrainFront],
   ['/settings', 'Settings', Settings],
   ['/about', 'About Project', Info],
 ];
@@ -37,7 +37,10 @@ export default function Sidebar({ user, isOpen, onNavigate, onLogout }) {
           </div>
         </div>
 
-        {navigation.map(([path, label, Icon]) => (
+        {(user?.role === 'driver'
+          ? navigation.filter(([path]) => ['/home', '/driver', '/map', '/alerts', '/about'].includes(path))
+          : navigation.filter(([path]) => path !== '/driver')
+        ).map(([path, label, Icon]) => (
           <NavLink
             key={path}
             to={path}
